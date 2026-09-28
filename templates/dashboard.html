@@ -19,6 +19,29 @@
   window.addEventListener('orientationchange',sync,{passive:true});
 })();
 </script>
+<script id="titan-mobile-desktop-header-detect">
+(function(){
+  const ua=navigator.userAgent||'';
+  const tabletUA=/iPad|Tablet|SM-T\d|SM-X\d|Pixel Tablet|Lenovo Tab|MediaPad|MatePad|Kindle/i.test(ua);
+  const desktopViewport=window.matchMedia('(min-width:761px) and (max-width:1100px)');
+  const coarsePointer=typeof window.matchMedia==='function'
+    ? window.matchMedia('(pointer:coarse)').matches : false;
+  const touch=Number(navigator.maxTouchPoints||0)>0||coarsePointer;
+  const sync=()=>{
+    const screenInfo=window.screen||{};
+    const screenWidth=Number(screenInfo.width)||0;
+    const screenHeight=Number(screenInfo.height)||0;
+    const shortEdge=Math.min(screenWidth,screenHeight);
+    const handsetScreen=shortEdge>0&&shortEdge<=600;
+    document.documentElement.classList.toggle(
+      'titan-mobile-desktop-mode',handsetScreen&&touch&&!tabletUA&&desktopViewport.matches
+    );
+  };
+  sync();
+  window.addEventListener('resize',sync,{passive:true});
+  window.addEventListener('orientationchange',sync,{passive:true});
+})();
+</script>
 <title>TiTaN — Private Network</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap');
@@ -902,6 +925,65 @@ html.titan-real-mobile #menu:checked ~ .app .sidebar{transform:translateX(0)}
   html.titan-real-mobile .mobile-toggle .toggle-icon,
   html.titan-real-mobile .mobile-overlay,
   html.titan-real-mobile .sidebar{transition-duration:.01ms}
+}
+</style>
+<style id="titan-mobile-desktop-header">
+/* Reflow only a phone-sized touch screen whose browser is rendering a desktop-width viewport. */
+html.titan-mobile-desktop-mode .header{
+  height:auto;
+  min-height:64px;
+  display:grid;
+  grid-template-columns:minmax(160px,1fr) minmax(240px,1.15fr);
+  grid-template-areas:"search actions";
+  align-items:center;
+  column-gap:clamp(16px,2vw,24px);
+  row-gap:0;
+  padding:6px 0 0;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+}
+html.titan-mobile-desktop-mode .header>div:first-child{display:none}
+html.titan-mobile-desktop-mode .search-wrap{
+  grid-area:search;
+  display:block;
+  justify-self:start;
+  align-self:center;
+  width:100%;
+  max-width:338px;
+  min-width:0;
+  margin:0;
+}
+html.titan-mobile-desktop-mode .search{
+  width:100%;
+  max-width:338px;
+  min-width:0;
+}
+html.titan-mobile-desktop-mode .actions{
+  grid-area:actions;
+  justify-self:stretch;
+  align-self:center;
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:nowrap;
+  gap:8px;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  margin:0;
+  direction:ltr;
+  white-space:nowrap;
+}
+html.titan-mobile-desktop-mode .profile{
+  flex:0 1 auto;
+  min-width:0;
+}
+html.titan-mobile-desktop-mode .profile-copy{
+  min-width:0;
+  max-width:132px;
+  overflow:hidden;
 }
 </style>
 </head>

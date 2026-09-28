@@ -294,3 +294,108 @@ for (const [name, profile, expected] of modes) {
     assert "mobile with Desktop Mode on: existing behavior preserved" in result.stdout
     assert "tablet: existing behavior preserved" in result.stdout
     assert "laptop/desktop: existing behavior preserved" in result.stdout
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_header_spacing_gate_only_targets_phone_desktop_mode():
+    """Keep the new header layout isolated to phone hardware in the desktop viewport band."""
+    style_match = re.search(
+        r'<style id="titan-mobile-desktop-header">([\s\S]*?)</style>', DASHBOARD
+    )
+    assert style_match, "the scoped header override is missing"
+    css = re.sub(r"/\*.*?\*/", "", style_match.group(1), flags=re.S)
+    selectors = [selector.strip() for selector in re.findall(r"([^{}]+)\{", css)]
+    assert selectors, "the scoped header stylesheet is empty"
+    assert all(selector.startswith("html.titan-mobile-desktop-mode") for selector in selectors), \
+        f"an unscoped header rule could change real mobile/desktop: {selectors}"
+    for rule in (
+        'grid-template-areas:"search actions"',
+        "grid-template-columns:minmax(160px,1fr) minmax(240px,1.15fr)",
+        "column-gap:clamp(16px,2vw,24px)",
+        "flex-wrap:nowrap",
+        "justify-content:flex-end",
+    ):
+        assert rule in css, f"the desktop-mode header lost {rule!r}"
+
+    script = r"""
+const fs = require('fs');
+const html = fs.readFileSync(process.env.TITAN_TEMPLATE, 'utf8');
+const match = html.match(/<script id="titan-mobile-desktop-header-detect">([\s\S]*?)<\/script>/);
+if (!match) throw new Error('mobile desktop-mode header detector not found');
+function makeMode({ua='Mozilla/5.0', screenWidth, screenHeight, width, touch=false, coarse=touch}) {
+  const classes = new Set();
+  const listeners = {};
+  const document = {documentElement: {classList: {
+    toggle(name, enabled) { enabled ? classes.add(name) : classes.delete(name); }
+  }}};
+  const navigator = {userAgent: ua, maxTouchPoints: touch ? 5 : 0};
+  const window = {
+    screen: {width: screenWidth, height: screenHeight},
+    matchMedia(query) {
+      if (query === '(pointer:coarse)') return {matches: coarse};
+      if (query === '(min-width:761px) and (max-width:1100px)') {
+        return {get matches() { return width >= 761 && width <= 1100; }};
+      }
+      throw new Error('unexpected media query: ' + query);
+    },
+    addEventListener(name, callback) { listeners[name] = callback; }
+  };
+  new Function('navigator', 'window', 'document', match[1])(navigator, window, document);
+  return {
+    active: () => classes.has('titan-mobile-desktop-mode'),
+    resize(nextWidth) { width = nextWidth; listeners.resize(); }
+  };
+}
+const modes = [
+  ['mobile, Desktop Mode off', {
+    ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148 Safari/604.1',
+    screenWidth: 390, screenHeight: 844, width: 390, touch: true
+  }, false],
+  ['mobile Desktop Mode, mobile UA retained', {
+    ua: 'Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) Mobile Safari/537.36',
+    screenWidth: 412, screenHeight: 915, width: 980, touch: true
+  }, true],
+  ['mobile Desktop Mode, desktop UA', {
+    ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Safari/605.1.15',
+    screenWidth: 393, screenHeight: 852, width: 980, touch: true
+  }, true],
+  ['tablet in desktop layout', {
+    ua: 'Mozilla/5.0 (Linux; Android 14; SM-X700) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36',
+    screenWidth: 800, screenHeight: 1280, width: 1000, touch: true
+  }, false],
+  ['touch laptop', {
+    ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36',
+    screenWidth: 1024, screenHeight: 768, width: 1024, touch: true
+  }, false],
+  ['desktop/laptop', {
+    ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36',
+    screenWidth: 1440, screenHeight: 900, width: 1440, touch: false
+  }, false]
+];
+for (const [name, profile, expected] of modes) {
+  const mode = makeMode(profile);
+  if (mode.active() !== expected) throw new Error(`${name}: expected ${expected}, got ${mode.active()}`);
+  console.log(`${name}: ${mode.active() ? 'header layout enabled' : 'existing behavior preserved'}`);
+}
+const resized = makeMode({screenWidth:390, screenHeight:844, width:390, touch:true});
+resized.resize(980);
+if (!resized.active()) throw new Error('resize into Desktop Mode did not activate the layout');
+resized.resize(390);
+if (resized.active()) throw new Error('resize back to normal mobile did not restore the existing layout');
+console.log('resize transitions: passed');
+"""
+    result = subprocess.run(
+        [shutil.which("node"), "-e", script], cwd=str(REPO), capture_output=True, text=True,
+        env={"PATH": "/usr/bin:/bin:/usr/local/bin", "TITAN_TEMPLATE": str(REPO / "templates/dashboard.html")},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    for expected in (
+        "mobile, Desktop Mode off: existing behavior preserved",
+        "mobile Desktop Mode, mobile UA retained: header layout enabled",
+        "mobile Desktop Mode, desktop UA: header layout enabled",
+        "tablet in desktop layout: existing behavior preserved",
+        "touch laptop: existing behavior preserved",
+        "desktop/laptop: existing behavior preserved",
+        "resize transitions: passed",
+    ):
+        assert expected in result.stdout
