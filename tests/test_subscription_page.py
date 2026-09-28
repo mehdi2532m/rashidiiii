@@ -105,7 +105,7 @@ def test_the_page_carries_the_contact_links_the_admin_gave(panel):
     uid, _ = _user(panel, "contact")
     sub = _link(panel, [uid])
     html = panel.get(f"/p/{sub['token']}").text
-    assert "https://github.com/mehdinew20/my-rezam" in html
+    assert "https://github.com/mehdi2532m/rashidiiii" in html
     assert "https://t.me/Code_Shield" in html
 
 

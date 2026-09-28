@@ -59,7 +59,7 @@ TiTaN یک پنل تک‌سرویسه برای ساخت و مدیریت **کان
 
 ### 💻 اجرای محلی
 ```bash
-git clone https://github.com/mehdinew20/my-rezam.git titan
+git clone https://github.com/mehdi2532m/rashidiiii.git titan
 cd titan
 pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8000
